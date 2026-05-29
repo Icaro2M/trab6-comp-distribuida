@@ -1,0 +1,43 @@
+type Query {
+    musicas: [Musica]
+    musica(id: Int!): Musica
+    usuarios: [Usuario]
+    usuario(id: Int!): Usuario
+    playlists: [Playlist]
+    playlist(id: Int!): Playlist
+    musicasDaPlaylist(playlist_id: Int!): [Musica]
+}
+
+type Mutation {
+    criarMusica(nome: String!, artista: String!): Musica
+    atualizarMusica(id: Int!, nome: String!, artista: String!): Musica
+    deletarMusica(id: Int!): String
+
+    criarUsuario(nome: String!, idade: Int!): Usuario
+    atualizarUsuario(id: Int!, nome: String!, idade: Int!): Usuario
+    deletarUsuario(id: Int!): String
+
+    criarPlaylist(nome: String!, usuario_id: Int!): Playlist
+    atualizarPlaylist(id: Int!, nome: String!, usuario_id: Int!): Playlist
+    deletarPlaylist(id: Int!): String
+
+    adicionarMusicaNaPlaylist(playlist_id: Int!, musica_id: Int!): String
+}
+
+type Musica {
+    id: Int
+    nome: String
+    artista: String
+}
+
+type Usuario {
+    id: Int
+    nome: String
+    idade: Int
+}
+
+type Playlist {
+    id: Int
+    nome: String
+    usuario_id: Int
+}

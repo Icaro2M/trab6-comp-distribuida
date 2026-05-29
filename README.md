@@ -35,11 +35,20 @@ trab6-comp-distribuida/
 │        ├─ music.proto
 │        ├─ music.pb.go
 │        └─ music_grpc.pb.go
-└─ java/
-   ├─ rest/
-   ├─ graphql/
-   ├─ grpc/
-   └─ soap/
+├─ java/
+│  ├─ pom.xml
+│  ├─ rest/
+│  ├─ soap/
+│  ├─ graphql/
+│  ├─ grpc/
+│  └─ tests/
+└─ locust/
+   ├─ requirements.txt
+   ├─ gerar_proto.sh
+   ├─ locustfile_rest.py
+   ├─ locustfile_soap.py
+   ├─ locustfile_graphql.py
+   └─ locustfile_grpc.py
 ```
 
 ## Banco de dados
@@ -141,12 +150,86 @@ localhost:8083
 
 ## Portas utilizadas
 
-```txt
-REST     -> http://localhost:8080
-SOAP     -> http://localhost:8081/soap
-GraphQL  -> http://localhost:8082/graphql
-gRPC     -> localhost:8083
+| Tecnologia | Go                               | Java                              |
+|------------|----------------------------------|-----------------------------------|
+| REST       | http://localhost:8080            | http://localhost:8090             |
+| SOAP       | http://localhost:8081/soap       | http://localhost:8091/soap        |
+| GraphQL    | http://localhost:8082/graphql    | http://localhost:8092/graphql     |
+| gRPC       | localhost:8083                   | localhost:8093                    |
+
+Ambas as implementações partilham o mesmo banco de dados PostgreSQL.
+
+## Como executar os serviços Java
+
+Pré-requisito: Java 21 e Maven instalados.
+
+Na pasta `java/`, compile todos os módulos de uma vez:
+
+```powershell
+cd java
+mvn clean install -DskipTests
 ```
+
+Depois execute cada serviço em um terminal separado:
+
+```powershell
+cd java/rest    && mvn spring-boot:run   # http://localhost:8090
+cd java/soap    && mvn spring-boot:run   # http://localhost:8091/soap?wsdl
+cd java/graphql && mvn spring-boot:run   # http://localhost:8092/graphql
+cd java/grpc    && mvn spring-boot:run   # localhost:8093 (TCP gRPC)
+```
+
+## Testes de integração (Java)
+
+Os testes verificam todas as operações CRUD em ambas as implementações.
+Pré-requisito: os serviços devem estar a correr antes de executar os testes.
+
+```powershell
+# Testes Java (porta 8090-8093)
+cd java
+mvn test -pl tests
+
+# Testes Go (porta 8080-8083) — mesma suíte, host diferente
+cd java
+mvn test -pl tests -Dtest.host=localhost
+```
+
+Para correr apenas um protocolo específico:
+
+```powershell
+mvn test -pl tests -Dtest=RestTest
+mvn test -pl tests -Dtest=SoapTest
+mvn test -pl tests -Dtest=GraphqlTest
+mvn test -pl tests -Dtest=GrpcTest
+```
+
+## Testes de carga com Locust
+
+Instalar dependências Python:
+
+```powershell
+cd locust
+pip install -r requirements.txt
+bash gerar_proto.sh   # gera stubs gRPC Python (obrigatório antes do teste gRPC)
+```
+
+Executar testes de carga (exemplos para o Java; troque a porta para 808x para Go):
+
+```powershell
+# REST
+locust -f locustfile_rest.py --host=http://localhost:8090 --headless -u 10 -r 2 -t 60s --csv=resultados_rest_java
+
+# SOAP
+locust -f locustfile_soap.py --host=http://localhost:8091 --headless -u 10 -r 2 -t 60s --csv=resultados_soap_java
+
+# GraphQL
+locust -f locustfile_graphql.py --host=http://localhost:8092 --headless -u 10 -r 2 -t 60s --csv=resultados_graphql_java
+
+# gRPC (host/porta controlados por variáveis de ambiente)
+GRPC_HOST=localhost GRPC_PORT=8093 locust -f locustfile_grpc.py --headless -u 10 -r 2 -t 60s --csv=resultados_grpc_java
+```
+
+Os ficheiros CSV gerados contêm latências, throughput e percentis para comparação entre tecnologias.
 
 ---
 
@@ -1027,6 +1110,150 @@ Body:
   "playlist_id": 1
 }
 ```
+
+---
+
+---
+
+# Exemplos de requisições — Java
+
+Os serviços Java expõem as mesmas operações que o Go, mas nas portas 8090–8093.
+Os exemplos REST e GraphQL são idênticos — basta trocar a porta.
+O SOAP Java usa JAX-WS com namespace qualificado (diferente do Go que usa parsing manual).
+
+## REST Java
+
+Idêntico ao Go REST, apenas mude a porta para `8090`. Exemplo:
+
+```http
+GET http://localhost:8090/musicas
+```
+
+```http
+POST http://localhost:8090/musicas
+Content-Type: application/json
+
+{
+  "nome": "Musica Java REST",
+  "artista": "Artista Java"
+}
+```
+
+## SOAP Java
+
+Endpoint:
+
+```txt
+POST http://localhost:8091/soap
+Content-Type: text/xml
+```
+
+O WSDL gerado automaticamente está disponível em:
+
+```txt
+GET http://localhost:8091/soap?wsdl
+```
+
+O Java SOAP usa JAX-WS com namespace qualificado. O formato dos envelopes é:
+
+### Listar músicas
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarMusicas/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Buscar música por ID
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:buscarMusica>
+      <id>1</id>
+    </ser:buscarMusica>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Criar música
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:criarMusica>
+      <nome>Musica Java SOAP</nome>
+      <artista>Artista Java SOAP</artista>
+    </ser:criarMusica>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar usuários
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarUsuarios/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar playlists
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarPlaylists/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar músicas de uma playlist
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarMusicasPlaylist>
+      <playlist_id>1</playlist_id>
+    </ser:listarMusicasPlaylist>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+## GraphQL Java
+
+Endpoint:
+
+```txt
+POST http://localhost:8092/graphql
+```
+
+As queries e mutations são idênticas ao Go GraphQL — apenas mude a porta para `8092`.
+
+## gRPC Java
+
+O serviço gRPC Java corre em:
+
+```txt
+localhost:8093
+```
+
+No Postman, importe o mesmo ficheiro `.proto`:
+
+```txt
+go/grpc/proto/music.proto
+```
+
+Os métodos e formatos de mensagem são idênticos ao Go gRPC — apenas mude o endereço para `localhost:8093`.
 
 ---
 
