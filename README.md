@@ -1,4 +1,8 @@
 # Trabalho 6 - Computação Distribuída
+## Alunos:
+- Icaro Molina
+- Mateus Maia
+- Nelson Mateus 2316448
 
 Este projeto simula um serviço de músicas utilizando um banco de dados PostgreSQL e quatro formas diferentes de acesso aos dados:
 
@@ -7,7 +11,9 @@ Este projeto simula um serviço de músicas utilizando um banco de dados Postgre
 * GraphQL
 * gRPC
 
-A parte em Go implementa os quatro serviços acessando o mesmo banco de dados. O banco contém dados de músicas, usuários e playlists.
+A parte em Go implementa os quatro serviços acessando o mesmo banco de dados. O banco contém dados de músicas, usuários e playlists.\
+
+
 
 ## Estrutura geral
 
