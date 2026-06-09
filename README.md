@@ -1,7 +1,7 @@
 # Trabalho 6 - Computação Distribuída
 ## Alunos:
-- Icaro Molina
-- Mateus Maia
+- Icaro Molina 2310334
+- Mateus Maia 2310323
 - Nelson Mateus 2316448
 
 Este projeto simula um serviço de músicas utilizando um banco de dados PostgreSQL e quatro formas diferentes de acesso aos dados:
