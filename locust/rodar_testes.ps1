@@ -50,13 +50,13 @@ function Executar-Teste {
 
 Write-Host "`n=== GO ===" -ForegroundColor Green
 Executar-Teste "REST Go" "locustfile_rest.py" "http://localhost:8080" "resultados_rest_go_carga2" "" ""
-Executar-Teste "SOAP Go" "locustfile_soap.py" "http://localhost:8081" "resultados_soap_go_carga2" "" ""
+Executar-Teste "SOAP Go" "locustfile_soap_go.py" "http://localhost:8081" "resultados_soap_go_carga2" "" ""
 Executar-Teste "GraphQL Go" "locustfile_graphql.py" "http://localhost:8082" "resultados_graphql_go_carga2" "" ""
 Executar-Teste "gRPC Go" "locustfile_grpc.py" "" "resultados_grpc_go_carga2" "localhost" "8083"
 
 Write-Host "`n=== JAVA ===" -ForegroundColor Green
 Executar-Teste "REST Java" "locustfile_rest.py" "http://localhost:8090" "resultados_rest_java_carga2" "" ""
-Executar-Teste "SOAP Java" "locustfile_soap.py" "http://localhost:8091" "resultados_soap_java_carga2" "" ""
+Executar-Teste "SOAP Java" "locustfile_soap_java.py" "http://localhost:8091" "resultados_soap_java_carga2" "" ""
 Executar-Teste "GraphQL Java" "locustfile_graphql.py" "http://localhost:8092" "resultados_graphql_java_carga2" "" ""
 Executar-Teste "gRPC Java" "locustfile_grpc.py" "" "resultados_grpc_java_carga2" "localhost" "8093"
 

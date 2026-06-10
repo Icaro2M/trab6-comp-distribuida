@@ -5,7 +5,7 @@ Go:    locust -f locustfile_soap.py --host=http://localhost:8081
 Java:  locust -f locustfile_soap.py --host=http://localhost:8091
 """
 
-from locust import HttpUser, task, between
+from locust import HttpUser, task, between, constant
 import random
 
 NS = "http://service.soap.musicaservice.com/"
@@ -25,7 +25,7 @@ HEADERS = {"Content-Type": "text/xml;charset=UTF-8", "SOAPAction": '""'}
 
 
 class SoapUser(HttpUser):
-    wait_time = between(0.5, 2)
+    wait_time = constant(0.1)
 
     @task(5)
     def listar_musicas(self):

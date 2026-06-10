@@ -5,12 +5,12 @@ Go:    locust -f locustfile_rest.py --host=http://localhost:8080
 Java:  locust -f locustfile_rest.py --host=http://localhost:8090
 """
 
-from locust import HttpUser, task, between
+from locust import HttpUser, task, between, constant
 import random
 
 
 class RestUser(HttpUser):
-    wait_time = between(0.5, 2)
+    wait_time = constant(0.1)
 
     musica_ids   = []
     playlist_ids = []
