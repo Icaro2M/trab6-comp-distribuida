@@ -5,33 +5,16 @@ Go:    locust -f locustfile_rest.py --host=http://localhost:8080
 Java:  locust -f locustfile_rest.py --host=http://localhost:8090
 """
 
-from locust import HttpUser, task, between, constant
-import random
+import os
+
+from locust import HttpUser, task, between
+
+WAIT_MIN = float(os.getenv("LOCUST_WAIT_MIN", "0.5"))
+WAIT_MAX = float(os.getenv("LOCUST_WAIT_MAX", "2"))
 
 
 class RestUser(HttpUser):
-    wait_time = constant(0.1)
-
-    musica_ids   = []
-    playlist_ids = []
-    usuario_ids  = []
-
-    def on_start(self):
-        # Busca IDs reais do banco via API
-        r = self.client.get("/musicas", name="[setup] GET /musicas")
-        if r.status_code == 200:
-            data = r.json()
-            self.musica_ids = [m["id"] for m in data] if data else list(range(1, 101))
-
-        r = self.client.get("/playlists", name="[setup] GET /playlists")
-        if r.status_code == 200:
-            data = r.json()
-            self.playlist_ids = [p["id"] for p in data] if data else list(range(1, 201))
-
-        r = self.client.get("/usuarios", name="[setup] GET /usuarios")
-        if r.status_code == 200:
-            data = r.json()
-            self.usuario_ids = [u["id"] for u in data] if data else list(range(1, 101))
+    wait_time = between(WAIT_MIN, WAIT_MAX)
 
     @task(5)
     def listar_musicas(self):

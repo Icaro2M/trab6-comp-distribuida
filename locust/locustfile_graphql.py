@@ -5,13 +5,18 @@ Go:    locust -f locustfile_graphql.py --host=http://localhost:8082
 Java:  locust -f locustfile_graphql.py --host=http://localhost:8092
 """
 
-from locust import HttpUser, task, between, constant
+import os
+
+from locust import HttpUser, task, between
+
+WAIT_MIN = float(os.getenv("LOCUST_WAIT_MIN", "0.5"))
+WAIT_MAX = float(os.getenv("LOCUST_WAIT_MAX", "2"))
 
 HEADERS = {"Content-Type": "application/json"}
 
 
 class GraphqlUser(HttpUser):
-    wait_time = constant(0.1)
+    wait_time = between(WAIT_MIN, WAIT_MAX)
 
     def gql(self, query: str, name: str):
         self.client.post(

@@ -1,4 +1,1 @@
 Method,Name,Error,Occurrences
-GET,GET /usuarios,HTTPError('500 Server Error: Internal Server Error for url: GET /usuarios'),392
-GET,GET /musicas,HTTPError('500 Server Error: Internal Server Error for url: GET /musicas'),918
-GET,GET /playlists,HTTPError('500 Server Error: Internal Server Error for url: GET /playlists'),581

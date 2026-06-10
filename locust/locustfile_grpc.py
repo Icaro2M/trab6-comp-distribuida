@@ -15,17 +15,19 @@ import grpc.experimental.gevent as grpc_gevent
 grpc_gevent.init_gevent()
 
 import grpc
-from locust import User, task, between, constant
+from locust import User, task, between
 
 import music_pb2
 import music_pb2_grpc
 
 GRPC_HOST = os.getenv("GRPC_HOST", "localhost")
 GRPC_PORT = int(os.getenv("GRPC_PORT", "8083"))
+WAIT_MIN = float(os.getenv("LOCUST_WAIT_MIN", "0.5"))
+WAIT_MAX = float(os.getenv("LOCUST_WAIT_MAX", "2"))
 
 
 class GrpcUser(User):
-    wait_time = constant(0.1)
+    wait_time = between(WAIT_MIN, WAIT_MAX)
     def on_start(self):
         self.channel = grpc.insecure_channel(f"{GRPC_HOST}:{GRPC_PORT}")
         self.stub = music_pb2_grpc.MusicServiceStub(self.channel)
