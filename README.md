@@ -1,4 +1,8 @@
 # Trabalho 6 - Computação Distribuída
+## Alunos:
+- Icaro Molina 2310334
+- Mateus Maia 2310323
+- Nelson Mateus 2316448
 
 Este projeto simula um serviço de músicas utilizando um banco de dados PostgreSQL e quatro formas diferentes de acesso aos dados:
 
@@ -7,7 +11,45 @@ Este projeto simula um serviço de músicas utilizando um banco de dados Postgre
 * GraphQL
 * gRPC
 
-A parte em Go implementa os quatro serviços acessando o mesmo banco de dados. O banco contém dados de músicas, usuários e playlists.
+
+
+## Resultados dos Testes de Carga
+
+Os gráficos abaixo apresentam a comparação entre as implementações em Go e Java para REST, SOAP, GraphQL e gRPC, considerando cargas de 100 e 300 usuários simultâneos.
+
+### Tempo mediano de resposta
+
+![Tempo mediano de resposta](locust/graficos/1_tempo_mediano.png)
+
+### Latência P95
+
+![Latência P95](locust/graficos/2_p95.png)
+
+### Tamanho médio do payload
+
+![Tamanho médio do payload](locust/graficos/3_payload.png)
+
+### Throughput
+
+![Throughput](locust/graficos/4_throughput.png)
+
+
+### Análise dos Resultados
+
+Os testes de carga foram executados com 100 e 300 usuários simultâneos para as implementações em Go e Java, considerando as APIs REST, SOAP, GraphQL e gRPC.
+
+Em relação ao **tempo mediano de resposta**, a implementação em Go apresentou os menores tempos na maioria dos cenários. O gRPC em Go teve o melhor desempenho geral, mantendo mediana de aproximadamente 5 ms tanto com 100 quanto com 300 usuários. REST e SOAP em Go também apresentaram tempos baixos, enquanto GraphQL teve maior latência entre as APIs em Go. Em Java, os tempos medianos foram maiores, principalmente em SOAP e GraphQL, com aumento perceptível ao passar de 100 para 300 usuários.
+
+Na métrica de **latência P95**, que representa os piores tempos observados para 95% das requisições, o gRPC também apresentou os melhores resultados. O gRPC em Go variou de aproximadamente 15 ms para 36 ms, enquanto em Java variou de cerca de 43 ms para 64 ms. REST, SOAP e GraphQL tiveram crescimento mais expressivo em Java com 300 usuários, indicando maior sensibilidade ao aumento de carga. GraphQL em Java apresentou o maior P95, chegando a aproximadamente 150 ms.
+
+Quanto ao **tamanho médio do payload**, os valores permaneceram relativamente estáveis entre 100 e 300 usuários, como esperado, já que a carga de usuários não altera diretamente o conteúdo retornado pelas APIs. O SOAP apresentou os maiores tamanhos de resposta, principalmente em Go, devido ao formato XML e à estrutura mais verbosa das mensagens. O gRPC apresentou os menores payloads médios, refletindo a compactação e eficiência do formato binário utilizado pelo protocolo.
+
+No **throughput**, todos os protocolos apresentaram aumento significativo ao passar de 100 para 300 usuários. Os resultados ficaram próximos entre as tecnologias, com valores em torno de 215 a 222 requisições por segundo nos cenários de 300 usuários. Isso indica que, apesar das diferenças de latência e payload, todas as implementações conseguiram sustentar uma taxa semelhante de processamento sob maior carga.
+
+De forma geral, os resultados indicam que o **gRPC foi o protocolo mais eficiente**, combinando baixa latência, menor payload e bom throughput. REST também apresentou bons resultados, especialmente em Go. SOAP teve maior custo em payload, enquanto GraphQL apresentou maior latência, principalmente na implementação em Java.
+
+
+
 
 ## Estrutura geral
 
@@ -35,11 +77,20 @@ trab6-comp-distribuida/
 │        ├─ music.proto
 │        ├─ music.pb.go
 │        └─ music_grpc.pb.go
-└─ java/
-   ├─ rest/
-   ├─ graphql/
-   ├─ grpc/
-   └─ soap/
+├─ java/
+│  ├─ pom.xml
+│  ├─ rest/
+│  ├─ soap/
+│  ├─ graphql/
+│  ├─ grpc/
+│  └─ tests/
+└─ locust/
+   ├─ requirements.txt
+   ├─ gerar_proto.sh
+   ├─ locustfile_rest.py
+   ├─ locustfile_soap.py
+   ├─ locustfile_graphql.py
+   └─ locustfile_grpc.py
 ```
 
 ## Banco de dados
@@ -141,12 +192,86 @@ localhost:8083
 
 ## Portas utilizadas
 
-```txt
-REST     -> http://localhost:8080
-SOAP     -> http://localhost:8081/soap
-GraphQL  -> http://localhost:8082/graphql
-gRPC     -> localhost:8083
+| Tecnologia | Go                               | Java                              |
+|------------|----------------------------------|-----------------------------------|
+| REST       | http://localhost:8080            | http://localhost:8090             |
+| SOAP       | http://localhost:8081/soap       | http://localhost:8091/soap        |
+| GraphQL    | http://localhost:8082/graphql    | http://localhost:8092/graphql     |
+| gRPC       | localhost:8083                   | localhost:8093                    |
+
+Ambas as implementações partilham o mesmo banco de dados PostgreSQL.
+
+## Como executar os serviços Java
+
+Pré-requisito: Java 21 e Maven instalados.
+
+Na pasta `java/`, compile todos os módulos de uma vez:
+
+```powershell
+cd java
+mvn clean install -DskipTests
 ```
+
+Depois execute cada serviço em um terminal separado:
+
+```powershell
+cd java/rest    && mvn spring-boot:run   # http://localhost:8090
+cd java/soap    && mvn spring-boot:run   # http://localhost:8091/soap?wsdl
+cd java/graphql && mvn spring-boot:run   # http://localhost:8092/graphql
+cd java/grpc    && mvn spring-boot:run   # localhost:8093 (TCP gRPC)
+```
+
+## Testes de integração (Java)
+
+Os testes verificam todas as operações CRUD em ambas as implementações.
+Pré-requisito: os serviços devem estar a correr antes de executar os testes.
+
+```powershell
+# Testes Java (porta 8090-8093)
+cd java
+mvn test -pl tests
+
+# Testes Go (porta 8080-8083) — mesma suíte, host diferente
+cd java
+mvn test -pl tests -Dtest.host=localhost
+```
+
+Para correr apenas um protocolo específico:
+
+```powershell
+mvn test -pl tests -Dtest=RestTest
+mvn test -pl tests -Dtest=SoapTest
+mvn test -pl tests -Dtest=GraphqlTest
+mvn test -pl tests -Dtest=GrpcTest
+```
+
+## Testes de carga com Locust
+
+Instalar dependências Python:
+
+```powershell
+cd locust
+pip install -r requirements.txt
+bash gerar_proto.sh   # gera stubs gRPC Python (obrigatório antes do teste gRPC)
+```
+
+Executar testes de carga (exemplos para o Java; troque a porta para 808x para Go):
+
+```powershell
+# REST
+locust -f locustfile_rest.py --host=http://localhost:8090 --headless -u 10 -r 2 -t 60s --csv=resultados_rest_java
+
+# SOAP
+locust -f locustfile_soap.py --host=http://localhost:8091 --headless -u 10 -r 2 -t 60s --csv=resultados_soap_java
+
+# GraphQL
+locust -f locustfile_graphql.py --host=http://localhost:8092 --headless -u 10 -r 2 -t 60s --csv=resultados_graphql_java
+
+# gRPC (host/porta controlados por variáveis de ambiente)
+GRPC_HOST=localhost GRPC_PORT=8093 locust -f locustfile_grpc.py --headless -u 10 -r 2 -t 60s --csv=resultados_grpc_java
+```
+
+Os ficheiros CSV gerados contêm latências, throughput e percentis para comparação entre tecnologias.
 
 ---
 
@@ -1027,6 +1152,150 @@ Body:
   "playlist_id": 1
 }
 ```
+
+---
+
+---
+
+# Exemplos de requisições — Java
+
+Os serviços Java expõem as mesmas operações que o Go, mas nas portas 8090–8093.
+Os exemplos REST e GraphQL são idênticos — basta trocar a porta.
+O SOAP Java usa JAX-WS com namespace qualificado (diferente do Go que usa parsing manual).
+
+## REST Java
+
+Idêntico ao Go REST, apenas mude a porta para `8090`. Exemplo:
+
+```http
+GET http://localhost:8090/musicas
+```
+
+```http
+POST http://localhost:8090/musicas
+Content-Type: application/json
+
+{
+  "nome": "Musica Java REST",
+  "artista": "Artista Java"
+}
+```
+
+## SOAP Java
+
+Endpoint:
+
+```txt
+POST http://localhost:8091/soap
+Content-Type: text/xml
+```
+
+O WSDL gerado automaticamente está disponível em:
+
+```txt
+GET http://localhost:8091/soap?wsdl
+```
+
+O Java SOAP usa JAX-WS com namespace qualificado. O formato dos envelopes é:
+
+### Listar músicas
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarMusicas/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Buscar música por ID
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:buscarMusica>
+      <id>1</id>
+    </ser:buscarMusica>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Criar música
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:criarMusica>
+      <nome>Musica Java SOAP</nome>
+      <artista>Artista Java SOAP</artista>
+    </ser:criarMusica>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar usuários
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarUsuarios/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar playlists
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarPlaylists/>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+### Listar músicas de uma playlist
+
+```xml
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:ser="http://service.soap.musicaservice.com/">
+  <soapenv:Body>
+    <ser:listarMusicasPlaylist>
+      <playlist_id>1</playlist_id>
+    </ser:listarMusicasPlaylist>
+  </soapenv:Body>
+</soapenv:Envelope>
+```
+
+## GraphQL Java
+
+Endpoint:
+
+```txt
+POST http://localhost:8092/graphql
+```
+
+As queries e mutations são idênticas ao Go GraphQL — apenas mude a porta para `8092`.
+
+## gRPC Java
+
+O serviço gRPC Java corre em:
+
+```txt
+localhost:8093
+```
+
+No Postman, importe o mesmo ficheiro `.proto`:
+
+```txt
+go/grpc/proto/music.proto
+```
+
+Os métodos e formatos de mensagem são idênticos ao Go gRPC — apenas mude o endereço para `localhost:8093`.
 
 ---
 
