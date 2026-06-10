@@ -1,5 +1,5 @@
 """
-Teste de carga — gRPC
+Teste de carga â€” gRPC
 =====================
 Pré-requisito: gerar os stubs Python primeiro:
   python -m grpc_tools.protoc -I../go/grpc/proto --python_out=. --grpc_python_out=. ../go/grpc/proto/music.proto
@@ -39,11 +39,12 @@ class GrpcUser(User):
         try:
             resposta = func(request)
             elapsed = (time.perf_counter() - inicio) * 1000
+            response_length = resposta.ByteSize() if resposta is not None else 0
             self.environment.events.request.fire(
                 request_type="gRPC",
                 name=nome,
                 response_time=elapsed,
-                response_length=0,
+                response_length=response_length,
                 exception=None,
                 context={}
             )

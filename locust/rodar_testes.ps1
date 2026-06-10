@@ -1,6 +1,6 @@
 param(
     [int]$Usuarios = 50,
-    [int]$RampUp = 5,
+    [int]$RampUp = 50,
     [string]$Duracao = "60s"
 )
 
@@ -8,30 +8,30 @@ Set-Location $PSScriptRoot
 $LOCUST = "python -m locust"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " TESTES DE CARGA - Locust" -ForegroundColor Cyan
-Write-Host " Usuarios: $Usuarios | Ramp-up: $RampUp | Duracao: $Duracao" -ForegroundColor Cyan
+Write-Host " TESTES DE CARGA - Locust (Carga Fixa)" -ForegroundColor Cyan
+Write-Host " Usuarios: $Usuarios | Ramp-up: $RampUp/s | Duracao: $Duracao" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
-# A função precisa existir antes de ser chamada
 function Executar-Teste {
     param(
         [string]$Nome,
         [string]$Arquivo,
         [string]$HostUrl,
-        [string]$CsvName,
+        [string]$CsvBaseName,
         [string]$GrpcHost,
         [string]$GrpcPort
     )
 
     Write-Host "`n[+] Iniciando: $Nome" -ForegroundColor Yellow
 
-    $cmd = "$LOCUST -f $Arquivo --headless -u $Usuarios -r $RampUp -t $Duracao --csv=$CsvName"
+    # Adiciona o número de usuários no nome do arquivo para não sobrescrever
+    $CsvNameFinal = "${CsvBaseName}_${Usuarios}u"
+    $cmd = "$LOCUST -f $Arquivo --headless -u $Usuarios -r $RampUp -t $Duracao --csv=$CsvNameFinal"
     
     if (![string]::IsNullOrEmpty($HostUrl)) {
         $cmd += " --host=$HostUrl"
     }
 
-    # Tratamento especial para o gRPC
     if (![string]::IsNullOrEmpty($GrpcHost) -and ![string]::IsNullOrEmpty($GrpcPort)) {
         $env:GRPC_HOST = $GrpcHost
         $env:GRPC_PORT = $GrpcPort
@@ -40,10 +40,8 @@ function Executar-Teste {
 
     Write-Host "    -> Comando: $cmd" -ForegroundColor DarkGray
     
-    # Executa o comando
     Invoke-Expression $cmd
 
-    # Limpa as variáveis de ambiente para não vazar pro próximo teste
     if (![string]::IsNullOrEmpty($GrpcHost)) {
         Remove-Item Env:\GRPC_HOST -ErrorAction SilentlyContinue
         Remove-Item Env:\GRPC_PORT -ErrorAction SilentlyContinue
@@ -61,9 +59,6 @@ Executar-Teste "REST Java" "locustfile_rest.py" "http://localhost:8090" "resulta
 Executar-Teste "SOAP Java" "locustfile_soap.py" "http://localhost:8091" "resultados_soap_java_carga2" "" ""
 Executar-Teste "GraphQL Java" "locustfile_graphql.py" "http://localhost:8092" "resultados_graphql_java_carga2" "" ""
 Executar-Teste "gRPC Java" "locustfile_grpc.py" "" "resultados_grpc_java_carga2" "localhost" "8093"
-
-Write-Host "`n=== Gerando graficos ===" -ForegroundColor Cyan
-python gerar_graficos.py
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host " TODOS OS TESTES CONCLUIDOS COM SUCESSO!" -ForegroundColor Green
