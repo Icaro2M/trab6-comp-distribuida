@@ -1,117 +1,124 @@
 import pandas as pd
 import matplotlib.pyplot as plt
-import matplotlib
 import os
 
-matplotlib.rcParams['font.family'] = 'DejaVu Sans'
-
-protocolos = ['rest', 'soap', 'graphql', 'grpc']
-linguagens = ['go', 'java']
-cargas     = ['carga1', 'carga2']
-cores      = {'rest': '#4C72B0', 'soap': '#DD8452', 'graphql': '#55A868', 'grpc': '#C44E52'}
-
+# Garante que a pasta de gráficos existe
 os.makedirs('graficos', exist_ok=True)
 
-def ler_stats(protocolo, linguagem, carga):
-    fname = f"resultados_{protocolo}_{linguagem}_{carga}_stats.csv"
-    if not os.path.exists(fname):
-        return None
-    df = pd.read_csv(fname)
-    agg = df[df['Name'] == 'Aggregated']
-    if agg.empty:
-        agg = df.iloc[-1:]
-    return agg.iloc[0]
+tecnologias = ['rest', 'soap', 'graphql', 'grpc']
+linguagens = ['go', 'java']
+# Cores para o gráfico de evolução
+cores_tech = {'rest': '#1f77b4', 'soap': '#d62728', 'graphql': '#2ca02c', 'grpc': '#9467bd'}
 
-# ── Gráfico 1: Latência mediana por protocolo (Go vs Java, por carga) ──
-for carga in cargas:
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-    fig.suptitle(f'Latência Mediana por Protocolo — {carga.upper()}', fontsize=14)
-    for ax, lang in zip(axes, linguagens):
-        medianas, labels, bar_cores = [], [], []
-        for proto in protocolos:
-            row = ler_stats(proto, lang, carga)
-            if row is not None:
-                medianas.append(row.get('50%', row.get('Median Response Time', 0)))
-                labels.append(proto.upper())
-                bar_cores.append(cores[proto])
-        bars = ax.bar(labels, medianas, color=bar_cores)
-        ax.bar_label(bars, fmt='%.0f ms', padding=3)
-        ax.set_title(lang.upper())
-        ax.set_ylabel('Latência Mediana (ms)')
-        ax.set_ylim(0, max(medianas) * 1.3 if medianas else 100)
-    plt.tight_layout()
-    plt.savefig(f'graficos/latencia_mediana_{carga}.png', dpi=150)
-    plt.close()
-    print(f'✅ latencia_mediana_{carga}.png')
+# ==========================================
+# PARTE 1: GRÁFICOS DE BARRAS (RESULTADO FINAL)
+# ==========================================
+def ler_dados(coluna):
+    dados = {'Go': [], 'Java': []}
+    for tech in tecnologias:
+        for lang in linguagens:
+            arquivo = f"resultados_{tech}_{lang}_carga2_stats.csv"
+            valor = 0
+            if os.path.exists(arquivo):
+                try:
+                    df = pd.read_csv(arquivo)
+                    linha = df[df['Name'] == 'Aggregated']
+                    if not linha.empty:
+                        valor = float(linha.iloc[0][coluna])
+                except Exception as e:
+                    pass
+            if lang == 'go': dados['Go'].append(valor)
+            else: dados['Java'].append(valor)
+    return dados
 
-# ── Gráfico 2: Throughput (req/s) ──
-for carga in cargas:
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5), sharey=True)
-    fig.suptitle(f'Throughput (req/s) por Protocolo — {carga.upper()}', fontsize=14)
-    for ax, lang in zip(axes, linguagens):
-        rps, labels, bar_cores = [], [], []
-        for proto in protocolos:
-            row = ler_stats(proto, lang, carga)
-            if row is not None:
-                rps.append(row.get('Requests/s', 0))
-                labels.append(proto.upper())
-                bar_cores.append(cores[proto])
-        bars = ax.bar(labels, rps, color=bar_cores)
-        ax.bar_label(bars, fmt='%.1f', padding=3)
-        ax.set_title(lang.upper())
-        ax.set_ylabel('Requisições/s')
-    plt.tight_layout()
-    plt.savefig(f'graficos/throughput_{carga}.png', dpi=150)
-    plt.close()
-    print(f'✅ throughput_{carga}.png')
+def plotar_barras(dados, titulo, arquivo_saida, ylabel):
+    x = range(len(tecnologias))
+    width = 0.35
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    bars1 = ax.bar([pos - width/2 for pos in x], dados['Go'], width, label='Go', color='#00ADD8')
+    bars2 = ax.bar([pos + width/2 for pos in x], dados['Java'], width, label='Java', color='#f89820')
 
-# ── Gráfico 3: P95 vs P99 — Carga 2 ──
-for lang in linguagens:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    x = range(len(protocolos))
-    p95, p99 = [], []
-    for proto in protocolos:
-        row = ler_stats(proto, lang, 'carga2')
-        p95.append(row.get('95%', 0) if row is not None else 0)
-        p99.append(row.get('99%', 0) if row is not None else 0)
-    bar_w = 0.35
-    b1 = ax.bar([i - bar_w/2 for i in x], p95, bar_w, label='P95', color='#4C72B0')
-    b2 = ax.bar([i + bar_w/2 for i in x], p99, bar_w, label='P99', color='#C44E52')
-    ax.bar_label(b1, fmt='%.0f ms', padding=2, fontsize=8)
-    ax.bar_label(b2, fmt='%.0f ms', padding=2, fontsize=8)
-    ax.set_xticks(list(x))
-    ax.set_xticklabels([p.upper() for p in protocolos])
-    ax.set_ylabel('Latência (ms)')
-    ax.set_title(f'Percentis P95 vs P99 — {lang.upper()} — Carga 2')
+    ax.set_ylabel(ylabel, fontweight='bold')
+    ax.set_title(f"{titulo}\n(Carga 2 | 50 Usuários Simultâneos)", fontsize=14, fontweight='bold')
+    ax.set_xticks(x)
+    ax.set_xticklabels([t.upper() for t in tecnologias], fontweight='bold')
     ax.legend()
-    plt.tight_layout()
-    plt.savefig(f'graficos/percentis_{lang}_carga2.png', dpi=150)
-    plt.close()
-    print(f'✅ percentis_{lang}_carga2.png')
 
-# ── Gráfico 4: Go vs Java — comparação direta ──
-for carga in cargas:
-    fig, ax = plt.subplots(figsize=(10, 5))
-    x = range(len(protocolos))
-    go_med   = []
-    java_med = []
-    for proto in protocolos:
-        rg = ler_stats(proto, 'go', carga)
-        rj = ler_stats(proto, 'java', carga)
-        go_med.append(rg.get('50%', rg.get('Median Response Time', 0)) if rg is not None else 0)
-        java_med.append(rj.get('50%', rj.get('Median Response Time', 0)) if rj is not None else 0)
-    b1 = ax.bar([i - 0.2 for i in x], go_med,   0.35, label='Go',   color='#00ADD8')
-    b2 = ax.bar([i + 0.2 for i in x], java_med, 0.35, label='Java', color='#E76F00')
-    ax.bar_label(b1, fmt='%.0f ms', padding=2, fontsize=8)
-    ax.bar_label(b2, fmt='%.0f ms', padding=2, fontsize=8)
-    ax.set_xticks(list(x))
-    ax.set_xticklabels([p.upper() for p in protocolos])
-    ax.set_ylabel('Latência Mediana (ms)')
-    ax.set_title(f'Go vs Java — Latência Mediana — {carga.upper()}')
-    ax.legend()
-    plt.tight_layout()
-    plt.savefig(f'graficos/go_vs_java_{carga}.png', dpi=150)
-    plt.close()
-    print(f'✅ go_vs_java_{carga}.png')
+    for bars in [bars1, bars2]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.annotate(f'{height:.1f}',
+                        xy=(bar.get_x() + bar.get_width() / 2, height),
+                        xytext=(0, 3), textcoords="offset points",
+                        ha='center', va='bottom', fontsize=10, fontweight='bold')
 
-print("\n✅ Todos os gráficos gerados em locust/graficos/")
+    ax.margins(y=0.15)
+    plt.tight_layout()
+    plt.savefig(os.path.join('graficos', arquivo_saida), dpi=300)
+    plt.close()
+
+# ==========================================
+# PARTE 2: GRÁFICOS DE EVOLUÇÃO (LINHA DO TEMPO)
+# ==========================================
+def plotar_evolucao(lang, titulo, arquivo_saida):
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+    ax2 = ax1.twinx()  # Cria um segundo eixo Y (lado direito) para os usuários
+
+    user_plotted = False
+
+    for tech in tecnologias:
+        # Lê o histórico, que mostra os dados segundo a segundo
+        arquivo = f"resultados_{tech}_{lang}_carga2_stats_history.csv"
+        if os.path.exists(arquivo):
+            try:
+                df = pd.read_csv(arquivo)
+                if 'Name' in df.columns and 'Aggregated' in df['Name'].values:
+                    df = df[df['Name'] == 'Aggregated'].copy()
+                
+                if not df.empty:
+                    # Cria a coluna de tempo começando do zero
+                    df['Tempo (s)'] = df['Timestamp'] - df['Timestamp'].min()
+                    
+                    # Tenta pegar a latência da janela atual ou a média total
+                    coluna_latencia = '50%' if '50%' in df.columns else 'Total Average Response Time'
+                    
+                    # Plota a linha do protocolo
+                    ax1.plot(df['Tempo (s)'], df[coluna_latencia], label=tech.upper(), color=cores_tech[tech], linewidth=2)
+                    
+                    # Plota a linha de usuários apenas uma vez
+                    if not user_plotted:
+                        ax2.plot(df['Tempo (s)'], df['User Count'], label='Usuários Simultâneos', color='black', linestyle='--', linewidth=2, alpha=0.6)
+                        user_plotted = True
+            except Exception as e:
+                print(f"Erro no histórico de {tech}: {e}")
+
+    ax1.set_xlabel('Tempo de Teste (segundos)', fontweight='bold')
+    ax1.set_ylabel('Tempo de Resposta (ms)', fontweight='bold')
+    ax2.set_ylabel('Quantidade de Usuários', fontweight='bold', color='black')
+    
+    ax1.set_title(f"{titulo}\nComo a latência reage à entrada de usuários", fontsize=14, fontweight='bold')
+    
+    # Junta as duas legendas em uma caixa só
+    lines_1, labels_1 = ax1.get_legend_handles_labels()
+    lines_2, labels_2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines_1 + lines_2, labels_1 + labels_2, loc='upper left')
+
+    plt.grid(True, linestyle=':', alpha=0.6)
+    plt.tight_layout()
+    plt.savefig(os.path.join('graficos', arquivo_saida), dpi=300)
+    plt.close()
+
+# ==========================================
+# EXECUÇÃO DO SCRIPT
+# ==========================================
+print("Lendo os dados finais e gerando gráficos de barras...")
+plotar_barras(ler_dados('Median Response Time'), 'Tempo de Resposta - Mediana', '1_latencia_mediana.png', 'Tempo (ms)')
+plotar_barras(ler_dados('95%'), 'Tempo de Resposta - Percentil 95 (P95)', '2_latencia_p95.png', 'Tempo (ms)')
+plotar_barras(ler_dados('Requests/s'), 'Vazão (Throughput)', '3_throughput.png', 'Requisições / Segundo')
+
+print("Analisando o histórico para gerar gráficos de evolução temporal...")
+plotar_evolucao('go', 'Evolução Temporal: Go (Goroutines)', '4_evolucao_go.png')
+plotar_evolucao('java', 'Evolução Temporal: Java (Spring Boot)', '5_evolucao_java.png')
+
+print("✅ Todos os gráficos foram gerados perfeitamente em locust/graficos/!")
