@@ -7,17 +7,19 @@ import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 GRAFICOS_DIR = os.path.join(BASE_DIR, "graficos")
+
 os.makedirs(GRAFICOS_DIR, exist_ok=True)
+
 
 TECNOLOGIAS = ["rest", "soap", "graphql", "grpc"]
 LINGUAGENS = ["go", "java"]
-CARGAS = [50, 100]
+CARGAS = [100, 300]
 
 SERIES = [
-    ("go", 50, "Go (50 usuarios)", "#79c7f2"),
-    ("go", 100, "Go (100 usuarios)", "#08aeca"),
-    ("java", 50, "Java (50 usuarios)", "#ffd7af"),
-    ("java", 100, "Java (100 usuarios)", "#ff981a"),
+    ("go", 100, "Go (100 usuários)", "#79c7f2"),
+    ("go", 300, "Go (300 usuários)", "#08aeca"),
+    ("java", 100, "Java (100 usuários)", "#ffd7af"),
+    ("java", 300, "Java (300 usuários)", "#ff981a"),
 ]
 
 
@@ -30,37 +32,50 @@ def limpar_graficos_antigos():
 def caminho_csv(tecnologia, linguagem, carga):
     return os.path.join(
         BASE_DIR,
-        f"resultados_{tecnologia}_{linguagem}_carga2_{carga}u_stats.csv",
+        f"resultados_{tecnologia}_{linguagem}_{carga}u_stats.csv",
     )
+
+
+def obter_coluna(df, coluna, arquivo):
+    if coluna not in df.columns:
+        raise ValueError(f"Coluna '{coluna}' não encontrada em: {arquivo}")
+    return df[coluna]
 
 
 def carregar_dados():
     linhas_agregado = []
     linhas_endpoint = []
+    arquivos_faltando = []
 
     for tecnologia in TECNOLOGIAS:
         for linguagem in LINGUAGENS:
             for carga in CARGAS:
                 arquivo = caminho_csv(tecnologia, linguagem, carga)
+
                 if not os.path.exists(arquivo):
-                    raise FileNotFoundError(f"Arquivo nao encontrado: {arquivo}")
+                    arquivos_faltando.append(arquivo)
+                    continue
 
                 df = pd.read_csv(arquivo)
+
                 linhas_setup = df["Name"].astype(str).str.startswith("[setup]").sum()
                 if linhas_setup:
                     raise ValueError(
-                        f"{arquivo} contem linhas [setup]. Rode os testes novamente."
+                        f"{arquivo} contém linhas [setup]. "
+                        "Rode os testes novamente sem misturar setup com medição."
                     )
 
                 agregado = df[df["Name"] == "Aggregated"]
                 if agregado.empty:
-                    raise ValueError(f"{arquivo} nao contem linha Aggregated.")
+                    raise ValueError(f"{arquivo} não contém linha Aggregated.")
 
                 agregado = agregado.iloc[0]
+
                 falhas = int(agregado["Failure Count"])
                 if falhas:
                     raise ValueError(
-                        f"{arquivo} contem {falhas} falhas. Nao gere grafico com cenario invalido."
+                        f"{arquivo} contém {falhas} falhas. "
+                        "Não gere gráfico com cenário inválido."
                     )
 
                 linhas_agregado.append(
@@ -69,15 +84,16 @@ def carregar_dados():
                         "linguagem": linguagem,
                         "usuarios": carga,
                         "requests": int(agregado["Request Count"]),
-                        "latencia_media_ms": float(agregado["Average Response Time"]),
+                        "falhas": int(agregado["Failure Count"]),
                         "latencia_mediana_ms": float(agregado["Median Response Time"]),
                         "p95_ms": float(agregado["95%"]),
-                        "p99_ms": float(agregado["99%"]),
                         "payload_bytes": float(agregado["Average Content Size"]),
+                        "throughput_rps": float(agregado["Requests/s"]),
                     }
                 )
 
                 endpoints = df[df["Name"] != "Aggregated"]
+
                 for _, endpoint in endpoints.iterrows():
                     linhas_endpoint.append(
                         {
@@ -86,12 +102,18 @@ def carregar_dados():
                             "usuarios": carga,
                             "endpoint": endpoint["Name"],
                             "requests": int(endpoint["Request Count"]),
-                            "latencia_media_ms": float(endpoint["Average Response Time"]),
+                            "falhas": int(endpoint["Failure Count"]),
                             "latencia_mediana_ms": float(endpoint["Median Response Time"]),
                             "p95_ms": float(endpoint["95%"]),
                             "payload_bytes": float(endpoint["Average Content Size"]),
+                            "throughput_rps": float(endpoint["Requests/s"]),
                         }
                     )
+
+    if arquivos_faltando:
+        mensagem = "Arquivos CSV não encontrados:\n"
+        mensagem += "\n".join(f"- {arquivo}" for arquivo in arquivos_faltando)
+        raise FileNotFoundError(mensagem)
 
     return pd.DataFrame(linhas_agregado), pd.DataFrame(linhas_endpoint)
 
@@ -102,8 +124,10 @@ def valor_agregado(df, tecnologia, linguagem, usuarios, coluna):
         & (df["linguagem"] == linguagem)
         & (df["usuarios"] == usuarios)
     ]
+
     if linha.empty:
-        return 0
+        return 0.0
+
     return float(linha.iloc[0][coluna])
 
 
@@ -111,6 +135,7 @@ def formatar_eixo(ax, ylabel):
     ax.set_ylabel(ylabel, fontweight="bold", fontsize=12)
     ax.set_xticks(np.arange(len(TECNOLOGIAS)))
     ax.set_xticklabels([t.upper() for t in TECNOLOGIAS], fontweight="bold", fontsize=12)
+
     ax.grid(axis="y", linestyle="--", alpha=0.55)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -121,6 +146,7 @@ def anotar_barras(ax, barras, formato="{:.1f}"):
         altura = barra.get_height()
         deslocamento = 4 if altura >= 0 else -12
         va = "bottom" if altura >= 0 else "top"
+
         ax.annotate(
             formato.format(altura),
             xy=(barra.get_x() + barra.get_width() / 2, altura),
@@ -134,25 +160,36 @@ def anotar_barras(ax, barras, formato="{:.1f}"):
         )
 
 
-def plotar_comparativo_carga(df, coluna, titulo, ylabel, arquivo_saida):
+def plotar_comparativo(df, coluna, titulo, ylabel, arquivo_saida, formato="{:.1f}"):
     x = np.arange(len(TECNOLOGIAS))
     largura = 0.2
     deslocamentos = [-1.5 * largura, -0.5 * largura, 0.5 * largura, 1.5 * largura]
 
     fig, ax = plt.subplots(figsize=(14, 7))
 
-    max_valor = 0
+    max_valor = 0.0
+
     for deslocamento, (linguagem, usuarios, label, cor) in zip(deslocamentos, SERIES):
         valores = [
             valor_agregado(df, tecnologia, linguagem, usuarios, coluna)
             for tecnologia in TECNOLOGIAS
         ]
+
         max_valor = max(max_valor, max(valores))
-        barras = ax.bar(x + deslocamento, valores, largura, label=label, color=cor)
-        anotar_barras(ax, barras)
+
+        barras = ax.bar(
+            x + deslocamento,
+            valores,
+            largura,
+            label=label,
+            color=cor,
+        )
+
+        anotar_barras(ax, barras, formato)
 
     ax.set_title(titulo, fontsize=16, fontweight="bold", pad=20)
     formatar_eixo(ax, ylabel)
+
     ax.set_ylim(0, max_valor * 1.28 if max_valor else 1)
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=4, frameon=False)
 
@@ -161,103 +198,12 @@ def plotar_comparativo_carga(df, coluna, titulo, ylabel, arquivo_saida):
     plt.close()
 
 
-def plotar_variacao_p95(df):
-    tecnologias_variacao = ["rest", "soap", "graphql"]
-    x = np.arange(len(tecnologias_variacao))
-    largura = 0.32
-    series = [("go", "Go", "#08aeca"), ("java", "Java", "#ff981a")]
-
-    fig, ax = plt.subplots(figsize=(14, 7))
-
-    todos_valores = []
-    for indice, (linguagem, label, cor) in enumerate(series):
-        valores = []
-        for tecnologia in tecnologias_variacao:
-            p95_50 = valor_agregado(df, tecnologia, linguagem, 50, "p95_ms")
-            p95_100 = valor_agregado(df, tecnologia, linguagem, 100, "p95_ms")
-            variacao = ((p95_100 - p95_50) / p95_50) * 100 if p95_50 else 0
-            valores.append(variacao)
-        todos_valores.extend(valores)
-        barras = ax.bar(
-            x + (indice - 0.5) * largura,
-            valores,
-            largura,
-            label=label,
-            color=cor,
-        )
-        anotar_barras(ax, barras, "{:.0f}%")
-
-    ax.axhline(0, color="#555555", linewidth=1)
-    ax.set_title(
-        "Impacto da Carga no P95\n(cenarios com carga comparavel entre 50 e 100 usuarios)",
-        fontsize=16,
-        fontweight="bold",
-        pad=20,
-    )
-    formatar_eixo(ax, "Variacao do P95 (%)")
-    ax.set_xticks(x)
-    ax.set_xticklabels(
-        [t.upper() for t in tecnologias_variacao],
-        fontweight="bold",
-        fontsize=12,
-    )
-    menor = min(todos_valores + [0])
-    maior = max(todos_valores + [0])
-    margem = max((maior - menor) * 0.25, 10)
-    ax.set_ylim(menor - margem, maior + margem)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2, frameon=False)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAFICOS_DIR, "3_variacao_p95_50_100.png"), dpi=300)
-    plt.close()
-
-
-def plotar_payload_consolidado(df):
-    x = np.arange(len(TECNOLOGIAS))
-    largura = 0.34
-    series = [("go", "Go", "#08aeca"), ("java", "Java", "#ff981a")]
-
-    fig, ax = plt.subplots(figsize=(14, 7))
-
-    max_valor = 0
-    for indice, (linguagem, label, cor) in enumerate(series):
-        valores = []
-        for tecnologia in TECNOLOGIAS:
-            subset = df[
-                (df["tecnologia"] == tecnologia)
-                & (df["linguagem"] == linguagem)
-            ]
-            valores.append(float(subset["payload_bytes"].mean()))
-        max_valor = max(max_valor, max(valores))
-        barras = ax.bar(
-            x + (indice - 0.5) * largura,
-            valores,
-            largura,
-            label=label,
-            color=cor,
-        )
-        anotar_barras(ax, barras, "{:.0f}")
-
-    ax.set_title(
-        "Tamanho Medio da Resposta\n(media entre os cenarios de 50 e 100 usuarios)",
-        fontsize=16,
-        fontweight="bold",
-        pad=20,
-    )
-    formatar_eixo(ax, "Bytes por resposta")
-    ax.set_ylim(0, max_valor * 1.25 if max_valor else 1)
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.1), ncol=2, frameon=False)
-
-    plt.tight_layout()
-    plt.savefig(os.path.join(GRAFICOS_DIR, "4_payload_size_comp.png"), dpi=300)
-    plt.close()
-
-
 def salvar_resumos(df_agregado, df_endpoint):
     df_agregado.sort_values(["tecnologia", "linguagem", "usuarios"]).to_csv(
         os.path.join(GRAFICOS_DIR, "resumo_agregado.csv"),
         index=False,
     )
+
     df_endpoint.sort_values(["tecnologia", "linguagem", "usuarios", "endpoint"]).to_csv(
         os.path.join(GRAFICOS_DIR, "resumo_por_endpoint.csv"),
         index=False,
@@ -266,33 +212,55 @@ def salvar_resumos(df_agregado, df_endpoint):
 
 def main():
     print("Carregando CSVs do Locust...")
+
     df_agregado, df_endpoint = carregar_dados()
 
     limpar_graficos_antigos()
     salvar_resumos(df_agregado, df_endpoint)
 
-    plotar_comparativo_carga(
+    plotar_comparativo(
         df_agregado,
-        "latencia_media_ms",
-        "Latencia Media por Tecnologia\n(comparativo entre 50 e 100 usuarios)",
-        "Tempo medio (ms)",
-        "1_latencia_media.png",
+        "latencia_mediana_ms",
+        "Tempo Mediano por Tecnologia\n(comparativo entre 100 e 300 usuários)",
+        "Tempo mediano (ms)",
+        "1_tempo_mediano.png",
+        "{:.1f}",
     )
-    plotar_comparativo_carga(
+
+    plotar_comparativo(
         df_agregado,
         "p95_ms",
-        "Latencia P95 por Tecnologia\n(cauda de resposta sob carga)",
+        "Latência P95 por Tecnologia\n(comparativo entre 100 e 300 usuários)",
         "Tempo P95 (ms)",
-        "2_latencia_p95.png",
+        "2_p95.png",
+        "{:.1f}",
     )
-    plotar_variacao_p95(df_agregado)
-    plotar_payload_consolidado(df_agregado)
 
-    print("Graficos gerados em locust/graficos:")
-    print("- 1_latencia_media.png")
-    print("- 2_latencia_p95.png")
-    print("- 3_variacao_p95_50_100.png")
-    print("- 4_payload_size_comp.png")
+    plotar_comparativo(
+        df_agregado,
+        "payload_bytes",
+        "Tamanho Médio do Payload por Tecnologia\n(comparativo entre 100 e 300 usuários)",
+        "Bytes por resposta",
+        "3_payload.png",
+        "{:.0f}",
+    )
+
+    plotar_comparativo(
+        df_agregado,
+        "throughput_rps",
+        "Throughput por Tecnologia\n(comparativo entre 100 e 300 usuários)",
+        "Requisições por segundo",
+        "4_throughput.png",
+        "{:.1f}",
+    )
+
+    print("Gráficos gerados em locust/graficos:")
+    print("- 1_tempo_mediano.png")
+    print("- 2_p95.png")
+    print("- 3_payload.png")
+    print("- 4_throughput.png")
+    print("- resumo_agregado.csv")
+    print("- resumo_por_endpoint.csv")
 
 
 if __name__ == "__main__":

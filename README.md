@@ -11,7 +11,43 @@ Este projeto simula um serviço de músicas utilizando um banco de dados Postgre
 * GraphQL
 * gRPC
 
-A parte em Go implementa os quatro serviços acessando o mesmo banco de dados. O banco contém dados de músicas, usuários e playlists.\
+
+
+## Resultados dos Testes de Carga
+
+Os gráficos abaixo apresentam a comparação entre as implementações em Go e Java para REST, SOAP, GraphQL e gRPC, considerando cargas de 100 e 300 usuários simultâneos.
+
+### Tempo mediano de resposta
+
+![Tempo mediano de resposta](locust/graficos/1_tempo_mediano.png)
+
+### Latência P95
+
+![Latência P95](locust/graficos/2_p95.png)
+
+### Tamanho médio do payload
+
+![Tamanho médio do payload](locust/graficos/3_payload.png)
+
+### Throughput
+
+![Throughput](locust/graficos/4_throughput.png)
+
+
+### Análise dos Resultados
+
+Os testes de carga foram executados com 100 e 300 usuários simultâneos para as implementações em Go e Java, considerando as APIs REST, SOAP, GraphQL e gRPC.
+
+Em relação ao **tempo mediano de resposta**, a implementação em Go apresentou os menores tempos na maioria dos cenários. O gRPC em Go teve o melhor desempenho geral, mantendo mediana de aproximadamente 5 ms tanto com 100 quanto com 300 usuários. REST e SOAP em Go também apresentaram tempos baixos, enquanto GraphQL teve maior latência entre as APIs em Go. Em Java, os tempos medianos foram maiores, principalmente em SOAP e GraphQL, com aumento perceptível ao passar de 100 para 300 usuários.
+
+Na métrica de **latência P95**, que representa os piores tempos observados para 95% das requisições, o gRPC também apresentou os melhores resultados. O gRPC em Go variou de aproximadamente 15 ms para 36 ms, enquanto em Java variou de cerca de 43 ms para 64 ms. REST, SOAP e GraphQL tiveram crescimento mais expressivo em Java com 300 usuários, indicando maior sensibilidade ao aumento de carga. GraphQL em Java apresentou o maior P95, chegando a aproximadamente 150 ms.
+
+Quanto ao **tamanho médio do payload**, os valores permaneceram relativamente estáveis entre 100 e 300 usuários, como esperado, já que a carga de usuários não altera diretamente o conteúdo retornado pelas APIs. O SOAP apresentou os maiores tamanhos de resposta, principalmente em Go, devido ao formato XML e à estrutura mais verbosa das mensagens. O gRPC apresentou os menores payloads médios, refletindo a compactação e eficiência do formato binário utilizado pelo protocolo.
+
+No **throughput**, todos os protocolos apresentaram aumento significativo ao passar de 100 para 300 usuários. Os resultados ficaram próximos entre as tecnologias, com valores em torno de 215 a 222 requisições por segundo nos cenários de 300 usuários. Isso indica que, apesar das diferenças de latência e payload, todas as implementações conseguiram sustentar uma taxa semelhante de processamento sob maior carga.
+
+De forma geral, os resultados indicam que o **gRPC foi o protocolo mais eficiente**, combinando baixa latência, menor payload e bom throughput. REST também apresentou bons resultados, especialmente em Go. SOAP teve maior custo em payload, enquanto GraphQL apresentou maior latência, principalmente na implementação em Java.
+
 
 
 
