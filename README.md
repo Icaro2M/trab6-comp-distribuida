@@ -1,6 +1,6 @@
 # Trabalho 6 - Computação Distribuída
 ## Alunos:
-- Icaro Molina 2310334
+- Ícaro Molina 2310334
 - Mateus Maia 2310323
 - Nelson Mateus 2316448
 
